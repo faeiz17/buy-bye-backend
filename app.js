@@ -30,5 +30,16 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+const cors = require("cors");
+app.use(cors({ origin: "http://localhost:5173" }));
+
 const userRoutes = require("./routes/userRoutes");
 app.use("/api/users", userRoutes);
+
+const vendorRoutes = require("./routes/vendorRoutes");
+
+app.use("/api/vendors", vendorRoutes);
+
+const productRoutes = require("./routes/productRoutes");
+
+app.use("/api/products", productRoutes);
