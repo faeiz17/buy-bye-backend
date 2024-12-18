@@ -35,7 +35,7 @@ const createVendor = asyncHandler(async (req, res) => {
 // @route   GET /api/vendors
 // @access  Public
 const getAllVendors = asyncHandler(async (req, res) => {
-  const vendors = await Vendor.find().populate("user", "name email");
+  const vendors = await Vendor.find().populate("user", "name email phone");
   res.status(200).json(vendors);
 });
 

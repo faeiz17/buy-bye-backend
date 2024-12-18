@@ -31,7 +31,19 @@ app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
 const cors = require("cors");
-app.use(cors({ origin: "https://buy-bye-frontend.vercel.app" }));
+const allowedOrigins = ["http://localhost:5173", "http://localhost:3000"];
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        console.log("Origin not allowed by CORS:", origin);
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+  })
+);
 
 const userRoutes = require("./routes/userRoutes");
 app.use("/api/users", userRoutes);

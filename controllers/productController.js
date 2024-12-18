@@ -1,5 +1,5 @@
 const Product = require("../models/Product");
-
+const asyncHandler = require("express-async-handler");
 // Create a new product
 exports.createProduct = async (req, res) => {
   try {
@@ -11,6 +11,8 @@ exports.createProduct = async (req, res) => {
       discountedPrice,
       category,
       vendor,
+      qualityScore,
+      featureProducts,
     } = req.body;
 
     // Validate request body
@@ -20,7 +22,9 @@ exports.createProduct = async (req, res) => {
       !imageURL ||
       !basePrice ||
       !category ||
-      !vendor
+      !vendor ||
+      !qualityScore ||
+      !featureProducts
     ) {
       return res.status(400).json({ error: "All fields are required" });
     }
@@ -34,6 +38,8 @@ exports.createProduct = async (req, res) => {
       discountedPrice,
       category,
       vendor,
+      qualityScore,
+      featureProducts,
     });
 
     await product.save();
@@ -47,8 +53,14 @@ exports.createProduct = async (req, res) => {
 exports.getAllProducts = async (req, res) => {
   try {
     // Extract query parameters
-    const { category, name, qualityScore, basePriceMin, basePriceMax } =
-      req.query;
+    const {
+      category,
+      name,
+      qualityScore,
+      basePriceMin,
+      basePriceMax,
+      featureProducts,
+    } = req.query;
 
     // Create a dynamic filter object
     const filter = {};
@@ -62,13 +74,17 @@ exports.getAllProducts = async (req, res) => {
     }
 
     if (qualityScore) {
-      filter.qualityScore = { $gte: parseFloat(qualityScore) }; // Minimum quality score
+      filter.qualityScore = { $eq: parseFloat(qualityScore) }; // Minimum quality score
     }
 
     if (basePriceMin || basePriceMax) {
       filter.basePrice = {};
       if (basePriceMin) filter.basePrice.$gte = parseFloat(basePriceMin); // Minimum base price
       if (basePriceMax) filter.basePrice.$lte = parseFloat(basePriceMax); // Maximum base price
+    }
+    // Filter by featureProducts if it is provided in the query
+    if (featureProducts !== undefined) {
+      filter.featureProducts = featureProducts === "true";
     }
 
     // Fetch products with populated vendor details
@@ -129,6 +145,30 @@ exports.deleteProduct = async (req, res) => {
       return res.status(404).json({ error: "Product not found" });
 
     res.status(200).json({ message: "Product deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+exports.getCategoryNames = async (req, res) => {
+  try {
+    const categories = await Product.aggregate([
+      {
+        $group: {
+          _id: "$category", // Group by category
+          imageURL: { $first: "$imageURL" }, // Pick the first imageURL for the category
+        },
+      },
+      {
+        $project: {
+          _id: 0, // Exclude the default `_id` field
+          category: "$_id", // Rename `_id` to `category`
+          imageURL: 1, // Include imageURL
+        },
+      },
+    ]);
+
+    res.status(200) ? console.log("success") : console.log("error");
+    res.status(200).json(categories);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

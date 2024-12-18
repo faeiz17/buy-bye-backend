@@ -6,9 +6,11 @@ const {
   getProductById,
   updateProduct,
   deleteProduct,
+  getCategoryNames,
 } = require("../controllers/productController"); // Adjust the path as needed
 const { protect } = require("../middleware/authMiddleware"); // Middleware for authentication
-
+// Public route to fetch all category names
+router.get("/categories", getCategoryNames);
 // Public route to fetch all products
 router.get("/", getAllProducts);
 
