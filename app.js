@@ -31,7 +31,7 @@ app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
 const cors = require("cors");
-app.use(cors({ origin: "http://localhost:5173" }));
+app.use(cors({ origin: "https://buy-bye-frontend.vercel.app" }));
 
 const userRoutes = require("./routes/userRoutes");
 app.use("/api/users", userRoutes);
