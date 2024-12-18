@@ -13,6 +13,7 @@ const productSchema = new mongoose.Schema({
     required: true,
   },
   qualityScore: { type: Number, default: 0 },
+  featureProducts: { type: Boolean, default: false },
 });
 
 module.exports = mongoose.model("Product", productSchema);
