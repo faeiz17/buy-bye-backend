@@ -9,17 +9,17 @@ const {
   loginUser,
   registerUser,
 } = require("../controllers/userController");
-const { protect, admin } = require("../middleware/authMiddleware");
+const { protectAdmin } = require("../middleware/authMiddleware");
 
 // @desc Fetch all users (Admin Only)
 // @route GET /api/users
 // @access Private/Admin
-router.get("/", protect, admin, getUsers);
+router.get("/", protectAdmin, getUsers);
 
 // @desc Get user by ID
 // @route GET /api/users/:id
 // @access Private
-router.get("/:id", protect, getUserById);
+router.get("/:id", protectAdmin, getUserById);
 
 // @desc Register a new user
 // @route POST /api/users/register
@@ -34,11 +34,11 @@ router.post("/login", loginUser);
 // @desc Update user profile
 // @route PUT /api/users/:id
 // @access Private
-router.put("/:id", protect, updateUser);
+router.put("/:id", protectAdmin, updateUser);
 
 // @desc Delete user
 // @route DELETE /api/users/:id
 // @access Private/Admin
-router.delete("/:id", protect, admin, deleteUser);
+router.delete("/:id", protectAdmin, deleteUser);
 
 module.exports = router;
