@@ -1,19 +1,21 @@
+// models/Product.js
 const mongoose = require("mongoose");
 
 const productSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  description: { type: String, required: true },
-  imageURL: { type: String, required: true },
-  basePrice: { type: Number, required: true },
-  discountedPrice: { type: Number, required: true }, // Add discounted price
-  category: { type: String, required: true },
-  vendor: {
+  title: { type: String, required: true },
+  price: { type: String, required: true },
+  imageUrl: { type: String, required: true },
+
+  category: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "Vendor",
+    ref: "Category",
     required: true,
   },
-  qualityScore: { type: Number, default: 0 },
-  featureProducts: { type: Boolean, default: false },
+  subCategory: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "SubCategory",
+    required: true,
+  },
 });
 
 module.exports = mongoose.model("Product", productSchema);

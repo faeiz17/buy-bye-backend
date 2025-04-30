@@ -1,29 +1,27 @@
 const express = require("express");
 const router = express.Router();
 const {
-  createProduct,
-  getAllProducts,
+  listProducts,
   getProductById,
+  listProductsByCategory,
+  listProductsBySubCategory,
+  createProduct,
   updateProduct,
   deleteProduct,
-  getCategoryNames,
-} = require("../controllers/productController"); // Adjust the path as needed
-const { protect } = require("../middleware/authMiddleware"); // Middleware for authentication
-// Public route to fetch all category names
-router.get("/categories", getCategoryNames);
-// Public route to fetch all products
-router.get("/", getAllProducts);
+  searchProducts,
+} = require("../controllers/productController");
+const { protectAdmin } = require("../middleware/authMiddleware");
 
-// Public route to fetch a specific product by ID
+// Public
+router.get("/", listProducts);
+router.get("/category/:categoryId", listProductsByCategory);
+router.get("/sub-category/:subCategoryId", listProductsBySubCategory);
 router.get("/:id", getProductById);
+router.get("/search/:keyword", searchProducts);
 
-// Private route to create a product
-router.post("/", protect, createProduct);
-
-// Private route to update a product
-router.put("/:id", protect, updateProduct);
-
-// Private route to delete a product
-router.delete("/:id", protect, deleteProduct);
+// Protected
+router.post("/", protectAdmin, createProduct);
+router.put("/:id", protectAdmin, updateProduct);
+router.delete("/:id", protectAdmin, deleteProduct);
 
 module.exports = router;

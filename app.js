@@ -1,57 +1,60 @@
+// app.js (or server.js)
 const express = require("express");
 const dotenv = require("dotenv");
+const cors = require("cors");
 const connectDB = require("./config/db");
 
-// Load environment variables
+// Load env vars
 dotenv.config();
 
-// Initialize the app
+// Initialize Express
 const app = express();
 
-// Middleware for JSON parsing
+// 1) CORS — register this first, so all following routes get the CORS headers
+app.use(cors());
+// 2) Body parser — so req.body is populated
 app.use(express.json());
 
-// Connect to MongoDB
+// 3) Connect to your database
 connectDB();
 
-// Basic route to check server status
-app.get("/", (req, res) => {
-  res.send("API is running...");
-});
-
-// Error handling middleware (optional, placeholder for expansion)
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ message: "Server Error", error: err.message });
-});
-
-// Start the server
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
-const cors = require("cors");
-const allowedOrigins = ["http://localhost:5173", "http://localhost:3000"];
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        console.log("Origin not allowed by CORS:", origin);
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
-  })
-);
+// 4) Mount your routes
+app.get("/", (req, res) => res.send("API is running..."));
 
 const userRoutes = require("./routes/userRoutes");
-app.use("/api/users", userRoutes);
-
 const vendorRoutes = require("./routes/vendorRoutes");
-
-app.use("/api/vendors", vendorRoutes);
-
 const productRoutes = require("./routes/productRoutes");
+const categoryRoutes = require("./routes/categoryRoutes");
+const subCategoryRoutes = require("./routes/subCategoryRoutes");
 
+const vendorProductRoutes = require("./routes/vendorProductRoutes");
+const customerRoutes = require("./routes/customerRoutes");
+const cartRoutes = require("./routes/cartRoutes");
+const orderRoutes = require("./routes/orderRoutes");
+const vendorOrderRoutes = require("./routes/vendorOrderRoutes");
+const customerOrderRoutes = require("./routes/customerOrderRoutes");
+
+app.use("/api/users", userRoutes);
+app.use("/api/vendors", vendorRoutes);
 app.use("/api/products", productRoutes);
+app.use("/api/categories", categoryRoutes);
+app.use("/api/subcategories", subCategoryRoutes);
+app.use("/api/vendor-products", vendorProductRoutes);
+app.use("/api/customers", customerRoutes);
+app.use("/api/cart", cartRoutes);
+app.use("/api/orders", orderRoutes);
+app.use("/api/vendor/orders", vendorOrderRoutes);
+app.use("/api/customer/orders", customerOrderRoutes);
+
+// 5) Error handler — after all routes
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  const status = res.statusCode === 200 ? 500 : res.statusCode;
+  res.status(status).json({ message: err.message });
+});
+
+// 6) Start listening — last
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});
