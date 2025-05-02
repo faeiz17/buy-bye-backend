@@ -691,4 +691,190 @@ exports.priceComparison = asyncHandler(async (req, res) => {
   // 8. Return comparison list with final prices
   res.json(productsWithFinalPrices);
 });
+
+// @desc    Create and search for ration packs
+// @route   POST /api/customers/ration-packs
+// @access  Private (customer)
+exports.createRationPack = asyncHandler(async (req, res) => {
+  const { products, lat, lng, radius = 1 } = req.body;
+  
+  // Validate input
+  if (!products || !Array.isArray(products) || products.length === 0) {
+    return res.status(400).json({ 
+      message: "Please select at least one product for your ration pack" 
+    });
+  }
+  
+  // Get coordinates (either from request or customer profile)
+  let coordinates;
+  if (lat && lng) {
+    coordinates = [parseFloat(lng), parseFloat(lat)];
+  } else {
+    const customer = await Customer.findById(req.customer.id);
+    if (!customer?.location?.coordinates) {
+      return res.status(400).json({
+        message: "No location available. Please provide lat and lng parameters or update your profile with an address."
+      });
+    }
+    coordinates = customer.location.coordinates;
+  }
+  
+  // Convert radius to radians for geo search
+  const rad = parseFloat(radius) / 6378.1;
+  
+  // Import required models
+  const Vendor = require("../models/Vendor");
+  const VendorProduct = require("../models/VendorProduct");
+  
+  // Find nearby vendors
+  const nearbyVendors = await Vendor.find({
+    isActive: true,
+    location: { 
+      $geoWithin: { 
+        $centerSphere: [coordinates, rad] 
+      } 
+    }
+  }).select("_id name location");
+  
+  if (!nearbyVendors.length) {
+    return res.json({ 
+      message: "No vendors found nearby", 
+      rationPacks: [] 
+    });
+  }
+  
+  // Get vendor IDs
+  const vendorIds = nearbyVendors.map(v => v._id);
+  
+  // Create result container for ration packs from each vendor
+  const rationPacks = [];
+  
+  // Process each vendor
+  for (const vendor of nearbyVendors) {
+    const packItems = [];
+    let totalOriginalPrice = 0;
+    let totalDiscountedPrice = 0;
+    let allProductsFound = true;
+    
+    // Check if this vendor has all requested products
+    for (const productTitle of products) {
+      // Find this product at this vendor
+      const vendorProducts = await VendorProduct.find({
+        vendor: vendor._id,
+        inStock: true
+      }).populate({
+        path: "product",
+        match: { title: { $regex: productTitle, $options: "i" } },
+        select: "title price imageUrl"
+      });
+      
+      // Then filter out any where product didn't match
+      const matchingProducts = vendorProducts.filter(vp => vp.product);
+      
+      // If no products match, skip this vendor
+      if (matchingProducts.length === 0) {
+        allProductsFound = false;
+        break;
+      }
+      
+      // Use the first matching product (or you could implement logic to choose best match)
+      const vendorProduct = matchingProducts[0];
+      
+      // Parse base price
+    // Parse base price
+// Parse base price
+let basePrice = 0;
+if (typeof vendorProduct.product.price === "string") {
+  console.log(`Parsing price for product: ${vendorProduct.product.title}, price: ${vendorProduct.product.price}`);
+  
+  // Method 1: Extract all digits and join them (better for "Rs. 200" format)
+  const priceStr = vendorProduct.product.price.trim();
+  const digits = priceStr.match(/\d+/g);
+  if (digits && digits.length > 0) {
+    basePrice = parseFloat(digits.join(""));
+    console.log(`Method 1 parsed price: ${basePrice}`);
+  } else {
+    // Method 2 (fallback): Remove non-numeric except decimal point
+    const numericValue = priceStr.replace(/[^0-9.]/g, "");
+    basePrice = parseFloat(numericValue);
+    console.log(`Method 2 parsed price: ${basePrice}`);
+  }
+} else if (typeof vendorProduct.product.price === "number") {
+  basePrice = vendorProduct.product.price;
+}
+
+// Validate the basePrice
+if (isNaN(basePrice) || basePrice <= 0) {
+  console.warn(`Invalid price for product: ${vendorProduct.product.title}, using default value`);
+  basePrice = 100; // Use a reasonable default value (e.g., 100)
+}
+
+console.log(`Final base price for ${vendorProduct.product.title}: ${basePrice}`);
+
+// Validate the basePrice
+if (isNaN(basePrice) || basePrice <= 0) {
+  console.warn(`Invalid price for product: ${vendorProduct.product.title}, using default value`);
+  basePrice = 0; // or set some default value
+}
+
+      // Calculate discounted price
+      let finalPrice = basePrice;
+      console.log(`Calculating discounted price for product: ${vendorProduct.product.title}, basePrice: ${basePrice}, discountType: ${vendorProduct.discountType}, discountValue: ${vendorProduct.discountValue}`);
+      console.log('final price',finalPrice)
+      if (vendorProduct.discountType && vendorProduct.discountValue) {
+        if (vendorProduct.discountType === "percentage") {
+          finalPrice = basePrice * (1 - vendorProduct.discountValue / 100);
+        } else if (vendorProduct.discountType === "amount") {
+          finalPrice = Math.max(0, basePrice - vendorProduct.discountValue);
+        }
+      }
+      
+      // Round prices
+      basePrice = parseFloat(basePrice.toFixed(2));
+      finalPrice = parseFloat(finalPrice.toFixed(2));
+      
+      // Add to totals
+      totalOriginalPrice += basePrice;
+      totalDiscountedPrice += finalPrice;
+      
+      // Add to pack items
+      packItems.push({
+        productId: vendorProduct.product._id,
+        vendorProductId: vendorProduct._id,
+        title: vendorProduct.product.title,
+        imageUrl: vendorProduct.product.imageUrl,
+        originalPrice: basePrice,
+        discountedPrice: finalPrice,
+        discountType: vendorProduct.discountType,
+        discountValue: vendorProduct.discountValue
+      });
+    }
+    
+    // Only add vendors that have all requested products
+    if (allProductsFound) {
+      rationPacks.push({
+        vendor: {
+          _id: vendor._id,
+          name: vendor.name,
+          location: vendor.location
+        },
+        items: packItems,
+        totalOriginalPrice: parseFloat(totalOriginalPrice.toFixed(2)),
+        totalDiscountedPrice: parseFloat(totalDiscountedPrice.toFixed(2)),
+        savings: parseFloat((totalOriginalPrice - totalDiscountedPrice).toFixed(2)),
+        savingsPercentage: parseFloat(((totalOriginalPrice - totalDiscountedPrice) / totalOriginalPrice * 100).toFixed(2))
+      });
+    }
+  }
+  
+  // Sort ration packs by lowest price first
+  rationPacks.sort((a, b) => a.totalDiscountedPrice - b.totalDiscountedPrice);
+  console.log("rationPacks", rationPacks);
+  
+  res.json({
+    message: `Found ${rationPacks.length} vendors with all your ration pack items`,
+    rationPacks
+  });
+});
+
 module.exports = exports;
