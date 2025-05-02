@@ -9,6 +9,7 @@ const VendorProduct = require("../models/VendorProduct");
 exports.getCart = asyncHandler(async (req, res) => {
   let cart = await Cart.findOne({ customer: req.customer.id }).populate({
     path: "items.vendorProduct",
+    select:"discountType discountValue",
     populate: [
       {
         path: "product",

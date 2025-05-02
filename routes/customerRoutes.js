@@ -13,6 +13,7 @@ const {
   getNearbyProducts,
   searchNearbyVendorsAndProducts,
   priceComparison,
+  createRationPack
 } = require("../controllers/customerController");
 const { protectCustomer } = require("../middleware/authMiddleware");
 
@@ -154,5 +155,8 @@ router.get(
 // @desc    Compare prices for a given product among nearby vendors
 // @access  Private
 router.get("/price-comparison", protectCustomer, priceComparison);
+
+
+router.post('/ration-packs', protectCustomer, createRationPack);
 
 module.exports = router;
