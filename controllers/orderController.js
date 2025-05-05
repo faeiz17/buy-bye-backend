@@ -1,9 +1,10 @@
-// controllers/orderController.js
+//C:\Users\faeiz\Desktop\buy-bye-backend\server\controllers\orderController.js
 const asyncHandler = require("express-async-handler");
 const Order = require("../models/Order");
 const Cart = require("../models/Cart");
 const Customer = require("../models/Customer");
 const VendorProduct = require("../models/VendorProduct");
+const { sendPushNotification } = require('./notificationController');
 
 // @desc    Create a new order from cart
 // @route   POST /api/orders
@@ -115,7 +116,12 @@ exports.createOrder = asyncHandler(async (req, res) => {
 
   // Save the order
   await order.save();
-
+  await sendPushNotification(
+    req.customer.id,
+    'Order Placed Successfully',
+    `Your order #${order.orderNumber} has been placed and is being processed.`,
+    { type: 'order', orderId: order._id.toString() }
+  );
   // Clear the cart after successful order creation
   cart.items = [];
   cart.lastUpdated = Date.now();
@@ -212,7 +218,12 @@ exports.cancelOrder = asyncHandler(async (req, res) => {
   });
 
   await order.save();
-
+  await sendPushNotification(
+    req.customer.id,
+    'Order Placed Successfully',
+    `Your order #${order.orderNumber} your order status is ${order.status}`,
+    { type: 'order', orderId: order._id.toString() }
+  );
   res.json({
     message: "Order cancelled successfully",
     order,
@@ -339,7 +350,12 @@ exports.createDirectOrder = asyncHandler(async (req, res) => {
 
     // Save the order
     await order.save();
-
+    await sendPushNotification(
+      req.customer.id,
+      'Order Placed Successfully',
+      `Your order #${order.orderNumber} has been placed and is being processed.`,
+      { type: 'order', orderId: order._id.toString() }
+    );
     // Return the created order
     const populatedOrder = await Order.findById(order._id)
       .populate("customer", "name email")

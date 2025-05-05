@@ -27,8 +27,13 @@ const customerSchema = new mongoose.Schema(
       zipcode: String,
       country: String,
     },
+    pushToken: {
+      type: String,
+      default: null,
+    },
   },
-  { timestamps: true }
+  { timestamps: true },
+  
 );
 
 // Create 2dsphere index for geospatial queries

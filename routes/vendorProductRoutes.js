@@ -7,10 +7,14 @@ const {
   getVendorProductById,
   updateVendorProduct,
   deleteVendorProduct,
+  getVendorProductsByFilters
+
 } = require("../controllers/vendorProductController");
 const { protectVendor } = require("../middleware/authMiddleware");
 // Get a single vendor product
+router.get('/by-vendor/:vendorId', getVendorProductsByFilters);
 router.get("/:id", getVendorProductById);
+
 // All routes below require a logged-in vendor
 router.use(protectVendor);
 

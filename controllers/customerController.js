@@ -433,6 +433,8 @@ exports.getNearbyProducts = asyncHandler(async (req, res) => {
 // @desc Search Nearby Vendors and Products
 // @route GET /api/customers/search-nearby-vendors-products
 // @access Private (customer)
+// Update to the searchNearbyVendorsAndProducts function to support 
+// all the new features including radius filtering and proper sorting
 exports.searchNearbyVendorsAndProducts = asyncHandler(async (req, res) => {
   // Get search parameters
   const {
@@ -442,11 +444,14 @@ exports.searchNearbyVendorsAndProducts = asyncHandler(async (req, res) => {
     categoryId,
     subCategoryId,
     vendorType,
-    radius: radiusParam = 1, // Default 1km
+    radius: radiusParam , // Default 1km
+    sortBy = 'nearest', // Default sort order
   } = req.query;
 
-  // Convert radius to radians (for MongoDB's $centerSphere)
-  const radius = parseFloat(radiusParam) / 6378.1;
+  // Validate and convert radius to radians (for MongoDB's $centerSphere)
+  const validRadiusOptions = [1, 3, 5, 10,15,20,25,50];
+  const requestedRadius = parseInt(radiusParam, 10) || 1;
+  const radius = (validRadiusOptions.includes(requestedRadius) ? requestedRadius : 1) / 6378.1;
 
   let coordinates;
 
@@ -502,10 +507,43 @@ exports.searchNearbyVendorsAndProducts = asyncHandler(async (req, res) => {
   const vendors = await Vendor.find(vendorQuery)
     .select(
       "-password -resetPasswordToken -resetPasswordExpires -emailVerificationToken -emailVerificationExpires -phoneVerificationCode -phoneVerificationExpires"
-    )
-    .sort({ createdAt: -1 });
+    );
 
-  result.vendors = vendors;
+  // Calculate and add distance for each vendor for sorting
+  const vendorsWithDistance = vendors.map(vendor => {
+    // Get vendor coords
+    const vendorCoords = vendor.location.coordinates;
+    
+    // Calculate distance using Haversine formula
+    const R = 6371; // Radius of the earth in km
+    const lat1 = coordinates[1] * Math.PI / 180;
+    const lat2 = vendorCoords[1] * Math.PI / 180;
+    const latDiff = (vendorCoords[1] - coordinates[1]) * Math.PI / 180;
+    const lngDiff = (vendorCoords[0] - coordinates[0]) * Math.PI / 180;
+    const a = Math.sin(latDiff/2) * Math.sin(latDiff/2) +
+              Math.cos(lat1) * Math.cos(lat2) *
+              Math.sin(lngDiff/2) * Math.sin(lngDiff/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const distance = R * c;
+    
+    // Convert Mongoose document to plain object
+    const vendorObj = vendor.toObject();
+    vendorObj.distance = distance;
+    
+    return vendorObj;
+  });
+
+  // Sort vendors based on sortBy parameter
+  const sortedVendors = [...vendorsWithDistance];
+  
+  if (sortBy === 'nearest') {
+    sortedVendors.sort((a, b) => a.distance - b.distance);
+  } else if (sortBy === 'farthest') {
+    sortedVendors.sort((a, b) => b.distance - a.distance);
+  }
+  // Other sort options don't apply to vendors
+  
+  result.vendors = sortedVendors;
 
   // 2. Get all nearby vendors (regardless of search term) to find their products
   const allNearbyVendors = await Vendor.find({
@@ -515,7 +553,7 @@ exports.searchNearbyVendorsAndProducts = asyncHandler(async (req, res) => {
         $centerSphere: [coordinates, radius],
       },
     },
-  }).select("_id");
+  }).select("_id location");
 
   if (!allNearbyVendors.length) {
     return res.json({
@@ -559,8 +597,7 @@ exports.searchNearbyVendorsAndProducts = asyncHandler(async (req, res) => {
 
   // Find vendor products
   let products = await VendorProduct.find(query)
-    .populate(populateOptions)
-    .sort({ createdAt: -1 });
+    .populate(populateOptions);
 
   // Filter out products that didn't match our category/subcategory filters
   products = products.filter((p) => p.product !== null);
@@ -576,11 +613,81 @@ exports.searchNearbyVendorsAndProducts = asyncHandler(async (req, res) => {
     });
   }
 
-  result.products = products;
+  // Convert to plain objects for manipulation
+  const productsWithDistanceAndPrice = products.map(product => {
+    const productObj = product.toObject();
+    
+    // Add distance
+    const vendorLocation = product.vendor?.location;
+    if (vendorLocation && vendorLocation.coordinates) {
+      const vendorCoords = vendorLocation.coordinates;
+      
+      // Calculate distance using Haversine formula
+      const R = 6371; // Radius of the earth in km
+      const lat1 = coordinates[1] * Math.PI / 180;
+      const lat2 = vendorCoords[1] * Math.PI / 180;
+      const latDiff = (vendorCoords[1] - coordinates[1]) * Math.PI / 180;
+      const lngDiff = (vendorCoords[0] - coordinates[0]) * Math.PI / 180;
+      const a = Math.sin(latDiff/2) * Math.sin(latDiff/2) +
+                Math.cos(lat1) * Math.cos(lat2) *
+                Math.sin(lngDiff/2) * Math.sin(lngDiff/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      const distance = R * c;
+      
+      productObj.distance = distance;
+    } else {
+      productObj.distance = 9999; // Large number for unknown distances
+    }
+    
+    // Process final price for sorting
+    let basePrice = 0;
+    if (typeof product.product.price === 'number') {
+      basePrice = product.product.price;
+    } else {
+      // Extract number from string if necessary
+      const match = String(product.product.price).match(/\d+/g);
+      basePrice = match ? parseInt(match.join(''), 10) : 0;
+    }
+    
+    // Calculate final price taking discounts into account
+    let finalPrice = basePrice;
+    if (product.discountType && product.discountValue) {
+      finalPrice = product.discountType === 'percentage'
+        ? basePrice * (1 - product.discountValue / 100)
+        : Math.max(0, basePrice - product.discountValue);
+    }
+    
+    productObj.finalPrice = finalPrice;
+    
+    return productObj;
+  });
+
+  // Sort products based on sortBy parameter
+  const sortedProducts = [...productsWithDistanceAndPrice];
+  
+  switch (sortBy) {
+    case 'nearest':
+      sortedProducts.sort((a, b) => a.distance - b.distance);
+      break;
+    case 'farthest':
+      sortedProducts.sort((a, b) => b.distance - a.distance);
+      break;
+    case 'cheapest':
+      sortedProducts.sort((a, b) => a.finalPrice - b.finalPrice);
+      break;
+    case 'expensive':
+      sortedProducts.sort((a, b) => b.finalPrice - a.finalPrice);
+      break;
+    default:
+      // Default to nearest
+      sortedProducts.sort((a, b) => a.distance - b.distance);
+  }
+  
+  result.products = sortedProducts;
 
   // Return combined search results
   return res.json({
-    message: `Found ${vendors.length} vendors and ${result.products.length} products matching your search`,
+    message: `Found ${result.vendors.length} vendors and ${result.products.length} products matching your search`,
     ...result,
   });
 });
@@ -696,7 +803,7 @@ exports.priceComparison = asyncHandler(async (req, res) => {
 // @route   POST /api/customers/ration-packs
 // @access  Private (customer)
 exports.createRationPack = asyncHandler(async (req, res) => {
-  const { products, lat, lng, radius = 1 } = req.body;
+  const { products, lat, lng, radius = 1, sortBy = 'cheapest' } = req.body;
   
   // Validate input
   if (!products || !Array.isArray(products) || products.length === 0) {
@@ -754,9 +861,9 @@ exports.createRationPack = asyncHandler(async (req, res) => {
     const packItems = [];
     let totalOriginalPrice = 0;
     let totalDiscountedPrice = 0;
-    let allProductsFound = true;
+    let availableProductsCount = 0;
     
-    // Check if this vendor has all requested products
+    // Check which products this vendor has
     for (const productTitle of products) {
       // Find this product at this vendor
       const vendorProducts = await VendorProduct.find({
@@ -771,87 +878,81 @@ exports.createRationPack = asyncHandler(async (req, res) => {
       // Then filter out any where product didn't match
       const matchingProducts = vendorProducts.filter(vp => vp.product);
       
-      // If no products match, skip this vendor
+      // If no products match, add placeholder item
       if (matchingProducts.length === 0) {
-        allProductsFound = false;
-        break;
-      }
-      
-      // Use the first matching product (or you could implement logic to choose best match)
-      const vendorProduct = matchingProducts[0];
-      
-      // Parse base price
-    // Parse base price
-// Parse base price
-let basePrice = 0;
-if (typeof vendorProduct.product.price === "string") {
-  console.log(`Parsing price for product: ${vendorProduct.product.title}, price: ${vendorProduct.product.price}`);
-  
-  // Method 1: Extract all digits and join them (better for "Rs. 200" format)
-  const priceStr = vendorProduct.product.price.trim();
-  const digits = priceStr.match(/\d+/g);
-  if (digits && digits.length > 0) {
-    basePrice = parseFloat(digits.join(""));
-    console.log(`Method 1 parsed price: ${basePrice}`);
-  } else {
-    // Method 2 (fallback): Remove non-numeric except decimal point
-    const numericValue = priceStr.replace(/[^0-9.]/g, "");
-    basePrice = parseFloat(numericValue);
-    console.log(`Method 2 parsed price: ${basePrice}`);
-  }
-} else if (typeof vendorProduct.product.price === "number") {
-  basePrice = vendorProduct.product.price;
-}
-
-// Validate the basePrice
-if (isNaN(basePrice) || basePrice <= 0) {
-  console.warn(`Invalid price for product: ${vendorProduct.product.title}, using default value`);
-  basePrice = 100; // Use a reasonable default value (e.g., 100)
-}
-
-console.log(`Final base price for ${vendorProduct.product.title}: ${basePrice}`);
-
-// Validate the basePrice
-if (isNaN(basePrice) || basePrice <= 0) {
-  console.warn(`Invalid price for product: ${vendorProduct.product.title}, using default value`);
-  basePrice = 0; // or set some default value
-}
-
-      // Calculate discounted price
-      let finalPrice = basePrice;
-      console.log(`Calculating discounted price for product: ${vendorProduct.product.title}, basePrice: ${basePrice}, discountType: ${vendorProduct.discountType}, discountValue: ${vendorProduct.discountValue}`);
-      console.log('final price',finalPrice)
-      if (vendorProduct.discountType && vendorProduct.discountValue) {
-        if (vendorProduct.discountType === "percentage") {
-          finalPrice = basePrice * (1 - vendorProduct.discountValue / 100);
-        } else if (vendorProduct.discountType === "amount") {
-          finalPrice = Math.max(0, basePrice - vendorProduct.discountValue);
+        packItems.push({
+          productId: null,
+          vendorProductId: null,
+          title: productTitle,
+          imageUrl: null,
+          originalPrice: 0,
+          discountedPrice: 0,
+          discountType: null,
+          discountValue: null,
+          isAvailable: false
+        });
+      } else {
+        // Use the first matching product
+        const vendorProduct = matchingProducts[0];
+        availableProductsCount++;
+        
+        // Parse base price
+        let basePrice = 0;
+        if (typeof vendorProduct.product.price === "string") {
+          // Method 1: Extract all digits and join them (better for "Rs. 200" format)
+          const priceStr = vendorProduct.product.price.trim();
+          const digits = priceStr.match(/\d+/g);
+          if (digits && digits.length > 0) {
+            basePrice = parseFloat(digits.join(""));
+          } else {
+            // Method 2 (fallback): Remove non-numeric except decimal point
+            const numericValue = priceStr.replace(/[^0-9.]/g, "");
+            basePrice = parseFloat(numericValue);
+          }
+        } else if (typeof vendorProduct.product.price === "number") {
+          basePrice = vendorProduct.product.price;
         }
+
+        // Validate the basePrice
+        if (isNaN(basePrice) || basePrice <= 0) {
+          basePrice = 100; // Use a reasonable default value
+        }
+
+        // Calculate discounted price
+        let finalPrice = basePrice;
+        if (vendorProduct.discountType && vendorProduct.discountValue) {
+          if (vendorProduct.discountType === "percentage") {
+            finalPrice = basePrice * (1 - vendorProduct.discountValue / 100);
+          } else if (vendorProduct.discountType === "amount") {
+            finalPrice = Math.max(0, basePrice - vendorProduct.discountValue);
+          }
+        }
+        
+        // Round prices
+        basePrice = parseFloat(basePrice.toFixed(2));
+        finalPrice = parseFloat(finalPrice.toFixed(2));
+        
+        // Add to totals
+        totalOriginalPrice += basePrice;
+        totalDiscountedPrice += finalPrice;
+        
+        // Add to pack items
+        packItems.push({
+          productId: vendorProduct.product._id,
+          vendorProductId: vendorProduct._id,
+          title: vendorProduct.product.title,
+          imageUrl: vendorProduct.product.imageUrl,
+          originalPrice: basePrice,
+          discountedPrice: finalPrice,
+          discountType: vendorProduct.discountType,
+          discountValue: vendorProduct.discountValue,
+          isAvailable: true
+        });
       }
-      
-      // Round prices
-      basePrice = parseFloat(basePrice.toFixed(2));
-      finalPrice = parseFloat(finalPrice.toFixed(2));
-      
-      // Add to totals
-      totalOriginalPrice += basePrice;
-      totalDiscountedPrice += finalPrice;
-      
-      // Add to pack items
-      packItems.push({
-        productId: vendorProduct.product._id,
-        vendorProductId: vendorProduct._id,
-        title: vendorProduct.product.title,
-        imageUrl: vendorProduct.product.imageUrl,
-        originalPrice: basePrice,
-        discountedPrice: finalPrice,
-        discountType: vendorProduct.discountType,
-        discountValue: vendorProduct.discountValue
-      });
     }
     
-    // Only add vendors that have all requested products
-    if (allProductsFound) {
+    // Include vendors that have at least one product
+    if (availableProductsCount > 0) {
       rationPacks.push({
         vendor: {
           _id: vendor._id,
@@ -862,19 +963,52 @@ if (isNaN(basePrice) || basePrice <= 0) {
         totalOriginalPrice: parseFloat(totalOriginalPrice.toFixed(2)),
         totalDiscountedPrice: parseFloat(totalDiscountedPrice.toFixed(2)),
         savings: parseFloat((totalOriginalPrice - totalDiscountedPrice).toFixed(2)),
-        savingsPercentage: parseFloat(((totalOriginalPrice - totalDiscountedPrice) / totalOriginalPrice * 100).toFixed(2))
+        savingsPercentage: totalOriginalPrice > 0 ? 
+          parseFloat(((totalOriginalPrice - totalDiscountedPrice) / totalOriginalPrice * 100).toFixed(2)) : 0,
+        availableProductsCount,
+        requestedProductsCount: products.length
       });
     }
   }
   
-  // Sort ration packs by lowest price first
-  rationPacks.sort((a, b) => a.totalDiscountedPrice - b.totalDiscountedPrice);
-  console.log("rationPacks", rationPacks);
+  // Sort ration packs based on sortBy parameter
+  if (sortBy === 'cheapest') {
+    rationPacks.sort((a, b) => a.totalDiscountedPrice - b.totalDiscountedPrice);
+  } else if (sortBy === 'expensive') {
+    rationPacks.sort((a, b) => b.totalDiscountedPrice - a.totalDiscountedPrice);
+  } else if (sortBy === 'nearest' || sortBy === 'farthest') {
+    // For nearest/farthest sorting, we need to calculate the distance from user's location
+    rationPacks.forEach(pack => {
+      const vendorCoords = pack.vendor.location.coordinates;
+      if (!vendorCoords) {
+        pack.distance = 9999; // Large number for sorting
+        return;
+      }
+      
+      // Calculate distance using Haversine formula
+      const R = 6371; // Radius of the earth in km
+      const lat1 = coordinates[1] * Math.PI / 180; // latitude of user
+      const lat2 = vendorCoords[1] * Math.PI / 180; // latitude of vendor
+      const latDiff = (vendorCoords[1] - coordinates[1]) * Math.PI / 180;
+      const lngDiff = (vendorCoords[0] - coordinates[0]) * Math.PI / 180;
+      const a = Math.sin(latDiff/2) * Math.sin(latDiff/2) +
+                Math.cos(lat1) * Math.cos(lat2) *
+                Math.sin(lngDiff/2) * Math.sin(lngDiff/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      pack.distance = R * c; // Distance in km
+    });
+    
+    // Sort by distance
+    if (sortBy === 'nearest') {
+      rationPacks.sort((a, b) => a.distance - b.distance);
+    } else { // farthest
+      rationPacks.sort((a, b) => b.distance - a.distance);
+    }
+  }
   
   res.json({
-    message: `Found ${rationPacks.length} vendors with all your ration pack items`,
+    message: `Found ${rationPacks.length} vendors with some or all of your ration pack items`,
     rationPacks
   });
 });
-
 module.exports = exports;

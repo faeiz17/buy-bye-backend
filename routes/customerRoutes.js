@@ -16,7 +16,7 @@ const {
   createRationPack
 } = require("../controllers/customerController");
 const { protectCustomer } = require("../middleware/authMiddleware");
-
+const { savePushToken } = require('../controllers/notificationController');
 // @route   POST /api/customers/register
 // @desc    Register a new customer
 // @access  Public
@@ -67,6 +67,9 @@ router.post(
 // @desc    Get current customer profile
 // @access  Private
 router.get("/profile", protectCustomer, getCustomerProfile);
+
+//notifcation
+router.post('/push-token', protectCustomer, savePushToken);
 
 // @route   PUT /api/customers/profile
 // @desc    Update customer profile

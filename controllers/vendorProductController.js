@@ -73,7 +73,86 @@ exports.getVendorProductById = asyncHandler(async (req, res) => {
   }
   res.json(vp);
 });
+// Add this function to controllers/vendorProductController.js
 
+// @desc    Get products from a specific vendor with filtering options
+// @route   GET /api/vendor-products/by-vendor/:vendorId
+// @access  Public
+exports.getVendorProductsByFilters = asyncHandler(async (req, res) => {
+  const { vendorId } = req.params;
+  const { categoryId, subCategoryId, sortBy = 'popular' } = req.query;
+
+  // Validate vendor ID
+  if (!vendorId) {
+    return res.status(400).json({ message: "Vendor ID is required" });
+  }
+
+  // Base query to get all products from this vendor
+  let query = { vendor: vendorId, inStock: true };
+
+  // Set up populate options with category filters
+  const populateOptions = [
+    { path: "vendor", select: "name location" },
+    {
+      path: "product",
+      select: "title price imageUrl category subCategory description",
+      populate: [
+        { path: "category", select: "name" },
+        { path: "subCategory", select: "name" },
+      ],
+    },
+  ];
+
+  // Apply category filter if provided
+  if (categoryId) {
+    populateOptions[1].match = { category: categoryId };
+  }
+
+  // Apply subcategory filter if provided
+  if (subCategoryId) {
+    populateOptions[1].match = {
+      ...(populateOptions[1].match || {}),
+      subCategory: subCategoryId,
+    };
+  }
+
+  // Find vendor products with filters
+  let products = await VendorProduct.find(query)
+    .populate(populateOptions);
+
+  // Filter out products that didn't match category/subcategory filters
+  products = products.filter((p) => p.product !== null);
+
+  // Sort products based on sortBy parameter
+  if (sortBy === 'cheapest') {
+    // Sort by price low to high
+    products.sort((a, b) => {
+      const priceA = extractPrice(a.product.price);
+      const priceB = extractPrice(b.product.price);
+      return priceA - priceB;
+    });
+  } else if (sortBy === 'expensive') {
+    // Sort by price high to low
+    products.sort((a, b) => {
+      const priceA = extractPrice(a.product.price);
+      const priceB = extractPrice(b.product.price);
+      return priceB - priceA;
+    });
+  } else {
+    // Default: sort by popularity/featured
+    // You can implement your own popularity logic here
+    // For now, just use the default order
+  }
+
+  // Utility function to extract price
+  function extractPrice(price) {
+    if (typeof price === 'number') return price;
+    const matches = String(price).match(/\d+/g);
+    return matches ? parseInt(matches.join(''), 10) : 0;
+  }
+
+  res.json(products);
+});
 // @desc    Update a vendor’s product by its ID
 // @route   PUT /api/vendor-products/:id
 // @access  Private (vendor)
