@@ -1,9 +1,9 @@
-// controllers/customerOrderController.js
+// C:\Users\faeiz\Desktop\buy-bye-backend\server\controllers\customerOrderController.js
 const asyncHandler = require("express-async-handler");
 const Order = require("../models/Order");
 const Vendor = require("../models/Vendor");
 const Customer = require("../models/Customer");
-
+const { sendPushNotification } = require('./notificationController');
 // @desc    Get all orders for a customer
 // @route   GET /api/customer/orders
 // @access  Private (customer)
@@ -101,6 +101,12 @@ exports.cancelCustomerOrder = asyncHandler(async (req, res) => {
   });
 
   await order.save();
+    await sendPushNotification(
+      req.customer.id,
+      'Order Placed Successfully',
+      `Your order #${order.orderNumber} your order status is ${order.status}`,
+      { type: 'order', orderId: order._id.toString() }
+    );
 
   res.json({
     message: "Order cancelled successfully",

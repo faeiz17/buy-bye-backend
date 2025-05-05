@@ -1,7 +1,8 @@
-// controllers/vendorOrderController.js
+// C:\Users\faeiz\Desktop\buy-bye-backend\server\controllers\vendorOrderController.js
 const asyncHandler = require("express-async-handler");
 const Order = require("../models/Order");
 const Vendor = require("../models/Vendor");
+const { sendPushNotification } = require('./notificationController');
 
 // @desc    Get all orders for a vendor
 // @route   GET /api/vendor/orders
@@ -135,6 +136,18 @@ exports.updateOrderStatus = asyncHandler(async (req, res) => {
   });
 
   await order.save();
+  try {
+    console.log(`Sending notification for order status update: ${orderId}`);
+    await sendPushNotification(
+      order.customer.toString(),
+      'Order Status Updated',
+      `Your order #${order.orderNumber} status is now ${status}`,
+      { type: 'order', orderId: order._id.toString(), status }
+    );
+    console.log('Push notification sent for status update');
+  } catch (notifError) {
+    console.error('Error sending push notification for status update:', notifError);
+  }
 
   res.json({
     message: "Order status updated successfully",
