@@ -11,11 +11,6 @@ exports.generateRecipe = asyncHandler(async (req, res) => {
     Groq = require('groq-sdk');
     
     // Check if API key is available
-// Find line 13 in controllers/recipeController.js and replace it with:
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY
-});
-    
     groq = new Groq({
       apiKey: process.env.GROQ_API_KEY
     });
