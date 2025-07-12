@@ -58,9 +58,8 @@ app.use((err, req, res, next) => {
 });
 
 // 6) Start listening — last
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`Connecting to DB`);
-  connectDB();
-});
+// Connect to DB at the top-level for Vercel
+connectDB();
+
+// Export the app for Vercel serverless
+module.exports = app;
