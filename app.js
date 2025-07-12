@@ -33,6 +33,8 @@ const cartRoutes = require("./routes/cartRoutes");
 const orderRoutes = require("./routes/orderRoutes");
 const vendorOrderRoutes = require("./routes/vendorOrderRoutes");
 const customerOrderRoutes = require("./routes/customerOrderRoutes");
+const recipeRoutes = require("./routes/recipeRoutes");
+const reviewRoutes = require("./routes/reviewRoutes");
 
 app.use("/api/users", userRoutes);
 app.use("/api/vendors", vendorRoutes);
@@ -45,6 +47,8 @@ app.use("/api/cart", cartRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/vendor/orders", vendorOrderRoutes);
 app.use("/api/customer/orders", customerOrderRoutes);
+app.use("/api/recipe", recipeRoutes);
+app.use("/api/reviews", reviewRoutes);
 
 // 5) Error handler — after all routes
 app.use((err, req, res, next) => {

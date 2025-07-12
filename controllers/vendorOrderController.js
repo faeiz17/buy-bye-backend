@@ -104,7 +104,7 @@ exports.updateOrderStatus = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "Invalid status" });
   }
 
-  const order = await Order.findById(orderId);
+  const order = await Order.findById(orderId).populate("customer", "name email");
 
   if (!order) {
     return res.status(404).json({ message: "Order not found" });
@@ -125,21 +125,25 @@ exports.updateOrderStatus = asyncHandler(async (req, res) => {
   const vendor = await Vendor.findById(vendorId).select("name");
   const vendorName = vendor ? vendor.name : "Vendor";
 
-  // Update order status
-  order.status = status;
-
-  // Add to status history
-  order.statusHistory.push({
-    status,
-    timestamp: Date.now(),
-    note: `Status updated to ${status} by ${vendorName}`,
-  });
-
-  await order.save();
+  // Update order status using findOneAndUpdate to avoid validation issues
+  const updatedOrder = await Order.findOneAndUpdate(
+    { _id: orderId },
+    {
+      $set: { status: status },
+      $push: {
+        statusHistory: {
+          status,
+          timestamp: Date.now(),
+          note: `Status updated to ${status} by ${vendorName}`,
+        }
+      }
+    },
+    { new: true, runValidators: false }
+  );
   try {
     console.log(`Sending notification for order status update: ${orderId}`);
     await sendPushNotification(
-      order.customer.toString(),
+      order.customer._id.toString(),
       'Order Status Updated',
       `Your order #${order.orderNumber} status is now ${status}`,
       { type: 'order', orderId: order._id.toString(), status }
@@ -152,10 +156,10 @@ exports.updateOrderStatus = asyncHandler(async (req, res) => {
   res.json({
     message: "Order status updated successfully",
     order: {
-      _id: order._id,
-      orderNumber: order.orderNumber,
-      status: order.status,
-      statusHistory: order.statusHistory,
+      _id: updatedOrder._id,
+      orderNumber: updatedOrder.orderNumber,
+      status: updatedOrder.status,
+      statusHistory: updatedOrder.statusHistory,
     },
   });
 });

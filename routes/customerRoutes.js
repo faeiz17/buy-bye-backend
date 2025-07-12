@@ -71,6 +71,30 @@ router.get("/profile", protectCustomer, getCustomerProfile);
 //notifcation
 router.post('/push-token', protectCustomer, savePushToken);
 
+// Test push notification endpoint (for debugging)
+router.post('/test-notification', protectCustomer, async (req, res) => {
+  try {
+    const { sendPushNotification } = require('../controllers/notificationController');
+    const customerId = req.customer.id;
+    
+    const result = await sendPushNotification(
+      customerId,
+      'Test Notification',
+      'This is a test push notification to verify the system is working.',
+      { type: 'test', timestamp: Date.now() }
+    );
+    
+    if (result.success) {
+      res.json({ message: 'Test notification sent successfully', result });
+    } else {
+      res.status(500).json({ message: 'Failed to send test notification', error: result.message });
+    }
+  } catch (error) {
+    console.error('Error in test notification:', error);
+    res.status(500).json({ message: 'Error sending test notification', error: error.message });
+  }
+});
+
 // @route   PUT /api/customers/profile
 // @desc    Update customer profile
 // @access  Private
