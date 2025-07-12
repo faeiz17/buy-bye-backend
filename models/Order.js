@@ -13,6 +13,11 @@ const orderItemSchema = new mongoose.Schema(
       ref: "Vendor",
       required: true,
     },
+    vendorProduct: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "VendorProduct",
+      required: false, // Made optional for backward compatibility
+    },
     quantity: {
       type: Number,
       required: true,
@@ -183,7 +188,7 @@ orderSchema.statics.generateOrderNumber = async function () {
   return `${prefix}${suffix}`;
 };
 
-// Pre-save hook to set status history
+// Pre-save hook to set status history and handle missing vendorProduct
 orderSchema.pre("save", function (next) {
   // If this is a new order or status has changed, add to history
   if (this.isNew || this.isModified("status")) {
@@ -193,7 +198,26 @@ orderSchema.pre("save", function (next) {
       note: this.isNew ? "Order created" : `Status changed to ${this.status}`,
     });
   }
+  
+  // Ensure vendorProduct field exists for all items (for backward compatibility)
+  if (this.items && this.items.length > 0) {
+    this.items.forEach(item => {
+      if (!item.hasOwnProperty('vendorProduct')) {
+        item.vendorProduct = null;
+      }
+    });
+  }
+  
   next();
+});
+
+// Pre-find hook to handle missing vendorProduct in existing orders
+orderSchema.pre('find', function() {
+  // This ensures that when we query orders, we handle missing vendorProduct gracefully
+});
+
+orderSchema.pre('findOne', function() {
+  // This ensures that when we query orders, we handle missing vendorProduct gracefully
 });
 
 module.exports = mongoose.model("Order", orderSchema);

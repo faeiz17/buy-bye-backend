@@ -473,6 +473,7 @@ exports.searchNearbyVendorsAndProducts = asyncHandler(async (req, res) => {
   // Import required models
   const Vendor = require("../models/Vendor");
   const VendorProduct = require("../models/VendorProduct");
+  const VendorProductReview = require("../models/VendorProductReview"); // Added this import
 
   // Prepare result container
   const result = {
@@ -659,8 +660,24 @@ exports.searchNearbyVendorsAndProducts = asyncHandler(async (req, res) => {
     
     productObj.finalPrice = finalPrice;
     
+    // Add average rating (default to 0 if no reviews)
+    productObj.averageRating = 0;
+    
     return productObj;
   });
+
+  // --- ADD: Aggregate average ratings for these products ---
+  const vendorProductIds = productsWithDistanceAndPrice.map(p => p._id);
+  const ratings = await VendorProductReview.aggregate([
+    { $match: { vendorProduct: { $in: vendorProductIds } } },
+    { $group: { _id: "$vendorProduct", avg: { $avg: "$rating" } } }
+  ]);
+  const ratingMap = {};
+  ratings.forEach(r => { ratingMap[r._id.toString()] = r.avg; });
+  productsWithDistanceAndPrice.forEach(p => {
+    p.averageRating = ratingMap[p._id.toString()] || 0;
+  });
+  // --- END ADD ---
 
   // Sort products based on sortBy parameter
   const sortedProducts = [...productsWithDistanceAndPrice];

@@ -16,7 +16,7 @@ exports.getCart = asyncHandler(async (req, res) => {
         select: "title price imageUrl",
         populate: [
           { path: "category", select: "name" },
-          { path: "subCategory", select: "name" },
+          { path: "subCategory", select: "name food_reciepe" },
         ],
       },
       {
@@ -46,7 +46,7 @@ exports.addToCart = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "Vendor product ID is required" });
   }
 
-  // Check if vendor product exists and is in stock
+  // Check if vendor product exists and is stock
   const vendorProduct = await VendorProduct.findById(vendorProductId);
   if (!vendorProduct) {
     return res.status(404).json({ message: "Product not found" });
@@ -90,7 +90,7 @@ exports.addToCart = asyncHandler(async (req, res) => {
         select: "title price imageUrl",
         populate: [
           { path: "category", select: "name" },
-          { path: "subCategory", select: "name" },
+          { path: "subCategory", select: "name food_reciepe" },
         ],
       },
       {
@@ -144,7 +144,7 @@ exports.updateCartItem = asyncHandler(async (req, res) => {
         select: "title price imageUrl",
         populate: [
           { path: "category", select: "name" },
-          { path: "subCategory", select: "name" },
+          { path: "subCategory", select: "name food_reciepe" },
         ],
       },
       {
@@ -186,7 +186,7 @@ exports.removeCartItem = asyncHandler(async (req, res) => {
         select: "title price imageUrl",
         populate: [
           { path: "category", select: "name" },
-          { path: "subCategory", select: "name" },
+          { path: "subCategory", select: "name food_reciepe" },
         ],
       },
       {

@@ -71,6 +71,7 @@ exports.createOrder = asyncHandler(async (req, res) => {
     orderItems.push({
       product: vp.product._id,
       vendor: vp.vendor._id,
+      vendorProduct: vp._id, // Add vendorProduct reference for reviews
       quantity: cartItem.quantity,
       price: itemPrice,
       discountType: vp.discountType,
