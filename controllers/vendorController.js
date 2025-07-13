@@ -65,12 +65,15 @@ exports.registerVendor = asyncHandler(async (req, res) => {
 
   // Send verification email
   try {
-    await sendVerificationEmail(vendor.email, emailToken, vendor.name);
+    await sendVerificationEmail(vendor.email, emailToken, vendor.name, 'vendors');
   } catch (error) {
     console.error("Failed to send verification email:", error);
     // Continue with registration even if email fails
   }
 
+  // Get base URL from environment or use production URL
+  const baseUrl = process.env.BASE_URL || 'https://buy-bye-backend.vercel.app';
+  
   res.status(201).json({
     _id: vendor._id,
     name: vendor.name,
@@ -80,6 +83,7 @@ exports.registerVendor = asyncHandler(async (req, res) => {
     isActive: vendor.isActive,
     message:
       "Registration successful. Please verify your email to activate your account.",
+    verificationUrl: `${baseUrl}/api/vendors/verify-email/${emailToken}`,
     token: generateToken(vendor._id),
   });
 });
@@ -210,9 +214,13 @@ exports.resendEmailVerification = asyncHandler(async (req, res) => {
 
   // Send verification email
   try {
-    await sendVerificationEmail(vendor.email, emailToken, vendor.name);
+    await sendVerificationEmail(vendor.email, emailToken, vendor.name, 'vendors');
+    // Get base URL from environment or use production URL
+    const baseUrl = process.env.BASE_URL || 'https://buy-bye-backend.vercel.app';
+    
     res.status(200).json({
       message: "Verification email resent successfully",
+      verificationUrl: `${baseUrl}/api/vendors/verify-email/${emailToken}`,
     });
   } catch (error) {
     console.error("Failed to send verification email:", error);
@@ -252,7 +260,7 @@ exports.updateVendorProfile = asyncHandler(async (req, res) => {
 
     // Send verification email
     try {
-      await sendVerificationEmail(email, emailToken, vendor.name);
+      await sendVerificationEmail(email, emailToken, vendor.name, 'vendors');
     } catch (error) {
       console.error("Failed to send verification email:", error);
       // Continue with update even if email fails

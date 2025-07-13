@@ -8,6 +8,7 @@ const {
   getCustomerProfile,
   updateCustomerProfile,
   verifyEmail,
+  resendEmailVerification,
   getNearbyVendors,
   updateLocation,
   getNearbyProducts,
@@ -43,6 +44,11 @@ router.post(
 // @desc    Verify customer email with token
 // @access  Public
 router.get("/verify-email/:token", verifyEmail);
+
+// @route   POST /api/customers/resend-verification
+// @desc    Resend email verification
+// @access  Private (customer)
+router.post("/resend-verification", protectCustomer, resendEmailVerification);
 
 // @route   POST /api/customers/login
 // @desc    Login customer & get token
@@ -151,14 +157,14 @@ router.post(
 // @route   GET /api/customers/nearby-products
 // @desc    Find products from vendors near customer location
 // @access  Private
-router.get("/nearby-products", protectCustomer, getNearbyProducts);
+router.get("/nearby-products", getNearbyProducts);
 
 // @route   GET /api/customers/search-nearby-vendors-products
 // @desc    Search for vendors and products near customer location
 // @access  Private
 router.get(
   "/search-nearby-vendors-products",
-  protectCustomer,
+
   [
     check("searchTerm", "Search term must be at least 2 characters")
       .optional()
