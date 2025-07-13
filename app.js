@@ -61,13 +61,7 @@ app.use((err, req, res, next) => {
 // Connect to DB at the top-level for Vercel
 connectDB();
 
-// Start server if running locally (not on Vercel)
-if (process.env.NODE_ENV !== 'production') {
-  const PORT = process.env.PORT || 5000;
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-  });
-}
+
 
 // Export the app for Vercel serverless
 module.exports = app;
