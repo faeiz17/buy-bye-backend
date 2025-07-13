@@ -78,7 +78,8 @@ exports.registerCustomer = asyncHandler(async (req, res) => {
     await sendVerificationEmail(
       customer.email,
       customer.emailVerificationToken,
-      customer.name
+      customer.name,
+      'customers'
     );
   } catch (error) {
     console.error("Failed to send verification email:", error);
@@ -93,6 +94,7 @@ exports.registerCustomer = asyncHandler(async (req, res) => {
     isActive: customer.isActive,
     message:
       "Registration successful. Please verify your email to activate your account.",
+    verificationUrl: `${process.env.BASE_URL || 'https://buy-bye-backend.vercel.app'}/api/customers/verify-email/${customer.emailVerificationToken}`,
     token: generateToken(customer._id),
   });
 });
@@ -125,6 +127,48 @@ exports.verifyEmail = asyncHandler(async (req, res) => {
   res.status(200).json({
     message: "Email verified successfully. Your account is now active.",
   });
+});
+
+// @desc    Resend email verification
+// @route   POST /api/customers/resend-verification
+// @access  Private (customer)
+exports.resendEmailVerification = asyncHandler(async (req, res) => {
+  const customer = await Customer.findById(req.customer.id);
+
+  if (!customer) {
+    return res.status(404).json({ message: "Customer not found" });
+  }
+
+  if (customer.isEmailVerified) {
+    return res.status(400).json({ message: "Email is already verified" });
+  }
+
+  // Generate new token
+  customer.emailVerificationToken = crypto.randomBytes(32).toString("hex");
+  customer.emailVerificationExpires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
+  await customer.save();
+
+  // Send verification email
+  try {
+    await sendVerificationEmail(
+      customer.email,
+      customer.emailVerificationToken,
+      customer.name,
+      'customers'
+    );
+    // Get base URL from environment or use production URL
+    const baseUrl = process.env.BASE_URL || 'https://buy-bye-backend.vercel.app';
+    
+    res.status(200).json({
+      message: "Verification email resent successfully",
+      verificationUrl: `${baseUrl}/api/customers/verify-email/${customer.emailVerificationToken}`,
+    });
+  } catch (error) {
+    console.error("Failed to send verification email:", error);
+    res.status(500).json({
+      message: "Failed to send verification email",
+    });
+  }
 });
 
 // @desc    Login customer & get token
@@ -207,7 +251,8 @@ exports.updateCustomerProfile = asyncHandler(async (req, res) => {
       await sendVerificationEmail(
         email,
         customer.emailVerificationToken,
-        customer.name
+        customer.name,
+        'customers'
       );
     } catch (error) {
       console.error("Failed to send verification email:", error);

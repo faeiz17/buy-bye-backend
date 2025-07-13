@@ -35,18 +35,22 @@ const createTransporter = async () => {
 };
 
 /**
- * Send verification email to vendor
+ * Send verification email to user (customer or vendor)
  * @param {string} email - Recipient email address
  * @param {string} token - Verification token
- * @param {string} name - Vendor name
+ * @param {string} name - User name
+ * @param {string} userType - 'customers' or 'vendors'
  * @returns {Promise<object>} - Email sending result
  */
-exports.sendVerificationEmail = async (email, token, name) => {
+exports.sendVerificationEmail = async (email, token, name, userType = 'customers') => {
   try {
     const transporter = await createTransporter();
 
-    // Create verification URL
-    const verificationUrl = `http://localhost:5000/api/vendors/verify-email/${token}`;
+    // Get base URL from environment or use production URL
+    const baseUrl = process.env.BASE_URL || 'https://buy-bye-backend.vercel.app';
+    
+    // Create verification URL based on user type
+    const verificationUrl = `${baseUrl}/api/${userType}/verify-email/${token}`;
 
     // Email content
     const mailOptions = {
